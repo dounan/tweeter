@@ -1,11 +1,13 @@
 import MySQLdb as mdb
-from happyfuntokenizing import Tokenizer
 
 class MysqlTweets:
 
-  def __init__(self):
+  def __init__(self, tokenize):
+    """
+    tokenize is a funciton that takes in a tweet and returns a list of tokens.
+    """
     self._mysql = mdb.connect('localhost', 'root', '', 'tweeter_development')
-    self._tokenizer = Tokenizer(preserve_case=False)
+    self._tokenize = tokenize
     self._offset = 0
 
   def get_more_sentences(self, limit=100000):
@@ -21,7 +23,7 @@ class MysqlTweets:
       row = cursor.fetchone()
       while row:
         self._offset += 1
-        yield self._tokenizer.tokenize(row[0])
+        yield self._tokenize(row[0])
         row = cursor.fetchone()
     except mdb.Error, e:
       print "Error %d: %s" % (e.args[0], e.args[1])
