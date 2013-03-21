@@ -41,37 +41,36 @@ class NgramKneserNey:
       self._continuations_map[n] = defaultdict(set)
       self._ngrams_map[n] = set()
 
+    # Maps {ngram_prefix: count}
+    self._prefix_count_cache = {}
+    # Maps {ngram_prefix: (n1, n2, n3)}
+    self._nvals_cache = {}
+
   def train(self, sentences):
-    for i in range(self._max_n):
-      self._train(i + 1, sentences)
-
-    if DEBUG:
-      pp.pprint(self._ngram_word_counts_map)
-      print
-      pp.pprint(self._continuations_map)
-      print
-      pp.pprint(self._ngrams_map)
-
-  def _train(self, n, sentences):
     """
-    Updates the counts for ngrams of order n.
+    sentence is a list of strings.
     """
-    ngram_word_counts = self._ngram_word_counts_map[n]
-    continuations = self._continuations_map[n]
-    ngrams = self._ngrams_map[n]
+    # Clear caches
+    self._prefix_count_cache = {}
+    self._nvals_cache = {}
 
-    # sentence is a list of strings.
     for sentence in sentences:
       sentence = sentence + [self.STOP]
-      ngram_prefix = (self.START,) * (n - 1)
 
-      for word in sentence:
-        ngram_word_counts[ngram_prefix][word] += 1
-        continuations[word].add(ngram_prefix)
-        ngrams.add(ngram_prefix + (word,))
+      for i in range(self._max_n):
+        n = i + 1
+        ngram_word_counts = self._ngram_word_counts_map[n]
+        continuations = self._continuations_map[n]
+        ngrams = self._ngrams_map[n]
+        ngram_prefix = (self.START,) * (n - 1)
 
-        # Advance the ngram_prefix.
-        if len(ngram_prefix) > 0: ngram_prefix = ngram_prefix[1:] + (word,)
+        for word in sentence:
+          ngram_word_counts[ngram_prefix][word] += 1
+          continuations[word].add(ngram_prefix)
+          ngrams.add(ngram_prefix + (word,))
+
+          # Advance the ngram_prefix.
+          if len(ngram_prefix) > 0: ngram_prefix = ngram_prefix[1:] + (word,)
 
   def get_unigrams(self):
     return self._ngrams_map[1]
@@ -92,12 +91,16 @@ class NgramKneserNey:
     c = self._get_ngram_count(n, ngram_prefix, word)
     discount = self._get_discount(c)
     c_star = max(c - discount, 0)
-    gamma = self._get_gamma(n, ngram_prefix, word)
+    gamma = self._get_gamma(n, ngram_prefix)
     return float(c_star) / c_total + gamma * prev_p
 
   def _get_prefix_count(self, n, ngram_prefix):
-    # TODO(dounanshi): cache this
-    return sum(self._ngram_word_counts_map[n][ngram_prefix].values())
+    # Simple cache.
+    if ngram_prefix not in self._prefix_count_cache:
+      c = sum(self._ngram_word_counts_map[n][ngram_prefix].values())
+      self._prefix_count_cache[ngram_prefix] = c
+    # Return cached value.
+    return  self._prefix_count_cache[ngram_prefix]
 
   def _get_ngram_count(self, n, ngram_prefix, word):
     return self._ngram_word_counts_map[n][ngram_prefix][word]
@@ -112,11 +115,16 @@ class NgramKneserNey:
     else:
       return self._discount_map[3]
 
-  def _get_gamma(self, n, ngram_prefix, word):
-    word_counts = self._ngram_word_counts_map[n][ngram_prefix]
-    n1 = len([v for v in word_counts.values() if v == 1])
-    n2 = len([v for v in word_counts.values() if v == 2])
-    n3 = len([v for v in word_counts.values() if v > 2])
+  def _get_gamma(self, n, ngram_prefix):
+    # Simple cache.
+    if ngram_prefix not in self._nvals_cache:
+      word_counts = self._ngram_word_counts_map[n][ngram_prefix]
+      n1 = len([v for v in word_counts.values() if v == 1])
+      n2 = len([v for v in word_counts.values() if v == 2])
+      n3 = len([v for v in word_counts.values() if v > 2])
+      self._nvals_cache[ngram_prefix] = (n1, n2, n3)
+    else:
+      n1, n2, n3 = self._nvals_cache[ngram_prefix]
     d1 = self._discount_map[1]
     d2 = self._discount_map[2]
     d3 = self._discount_map[3]
