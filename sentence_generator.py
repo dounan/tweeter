@@ -11,11 +11,11 @@ class SentenceGenerator:
     """
     self._model = model
 
-  def generate_sentence(self, n):
+  def generate_sentence(self, n, word_limit=50):
     sentence = []
     ngram_prefix = (NgramKneserNey.START,) * (n - 1)
     word = self._generate_word(ngram_prefix)
-    while not word == NgramKneserNey.STOP:
+    while len(sentence) < word_limit and not word == NgramKneserNey.STOP:
       sentence.append(word)
       if len(ngram_prefix) > 0: ngram_prefix = ngram_prefix[1:] + (word,)
       word = self._generate_word(ngram_prefix)
